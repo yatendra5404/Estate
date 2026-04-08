@@ -1,0 +1,77 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "A user of the estate app",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "role": { "type": "string", "enum": ["admin", "member"] }
+      },
+      "required": ["name", "email", "role"]
+    },
+    "Request": {
+      "title": "Request",
+      "description": "A household request",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "category": { "type": "string" },
+        "urgency": { "type": "string", "enum": ["LOW", "MID", "HIGH"] },
+        "notes": { "type": "string" },
+        "requestedBy": { "type": "string" },
+        "requestedById": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "status": { "type": "string", "enum": ["PENDING", "URGENT", "BOUGHT", "COMPLETED"] }
+      },
+      "required": ["name", "category", "urgency", "requestedBy", "requestedById", "createdAt", "status"]
+    },
+    "ShoppingItem": {
+      "title": "ShoppingItem",
+      "description": "An item on the shopping list",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "requestedBy": { "type": "string" },
+        "requestedById": { "type": "string" },
+        "category": { "type": "string" },
+        "bought": { "type": "boolean" },
+        "price": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "requestedBy", "requestedById", "category", "bought", "createdAt"]
+    },
+    "Expense": {
+      "title": "Expense",
+      "description": "An expense record",
+      "type": "object",
+      "properties": {
+        "amount": { "type": "number" },
+        "category": { "type": "string" },
+        "date": { "type": "string", "format": "date-time" },
+        "description": { "type": "string" },
+        "createdBy": { "type": "string" }
+      },
+      "required": ["amount", "category", "date", "description", "createdBy"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "User profiles"
+    },
+    "/requests/{requestId}": {
+      "schema": { "$ref": "#/entities/Request" },
+      "description": "Household requests"
+    },
+    "/shoppingList/{itemId}": {
+      "schema": { "$ref": "#/entities/ShoppingItem" },
+      "description": "Shopping list items"
+    },
+    "/expenses/{expenseId}": {
+      "schema": { "$ref": "#/entities/Expense" },
+      "description": "Expense records"
+    }
+  }
+}

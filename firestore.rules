@@ -1,0 +1,184 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    // Collection: users
+    // Document ID: userId
+    // Fields:
+    //   - name: string (required)
+    //   - email: string (required)
+    //   - role: string (required, 'admin' or 'member')
+    //
+    // Collection: requests
+    // Document ID: auto-generated
+    // Fields:
+    //   - name: string (required, < 100 chars)
+    //   - category: string (required, < 50 chars)
+    //   - urgency: string (required, 'LOW', 'MID', 'HIGH')
+    //   - notes: string (optional, < 500 chars)
+    //   - requestedBy: string (required, < 50 chars)
+    //   - requestedById: string (required, matches uid)
+    //   - createdAt: string (required, ISO 8601)
+    //   - status: string (required, 'PENDING', 'URGENT', 'BOUGHT', 'COMPLETED')
+    //
+    // Collection: shoppingList
+    // Document ID: auto-generated
+    // Fields:
+    //   - name: string (required, < 100 chars)
+    //   - requestedBy: string (required, < 50 chars)
+    //   - requestedById: string (required, matches uid)
+    //   - category: string (required, < 50 chars)
+    //   - bought: boolean (required)
+    //   - price: number (optional, >= 0)
+    //   - createdAt: string (required, ISO 8601)
+    //
+    // Collection: expenses
+    // Document ID: auto-generated
+    // Fields:
+    //   - amount: number (required, >= 0)
+    //   - category: string (required, < 50 chars)
+    //   - date: string (required, ISO 8601)
+    //   - description: string (required, < 200 chars)
+    //   - createdBy: string (required, matches uid)
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+          (request.auth.token.email == "gurjarkhushboosingh2009@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isValidDateString(dateStr) {
+      return dateStr is string && dateStr.matches("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.*Z?$");
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+    function isValidUser(data) {
+      return hasOnlyAllowedFields(['name', 'email', 'role']) &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             data.email is string && isValidEmail(data.email) &&
+             data.role in ['admin', 'member'];
+    }
+
+    function isValidRequest(data) {
+      let allowedFields = ['name', 'category', 'urgency', 'notes', 'requestedBy', 'requestedById', 'createdAt', 'status', 'price', 'purchasedAt'];
+      let hasRequired = data.keys().hasAll(['name', 'category', 'urgency', 'requestedBy', 'requestedById', 'createdAt', 'status']);
+      let validNotes = !('notes' in data) || (data.notes is string && data.notes.size() <= 500);
+      let validPrice = !('price' in data) || (data.price is number && data.price >= 0);
+      
+      return hasOnlyAllowedFields(allowedFields) && hasRequired &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             data.category is string && data.category.size() > 0 && data.category.size() < 50 &&
+             data.urgency in ['LOW', 'MID', 'HIGH'] &&
+             validNotes &&
+             validPrice &&
+             data.requestedBy is string && data.requestedBy.size() > 0 && data.requestedBy.size() < 50 &&
+             data.requestedById is string && data.requestedById == request.auth.uid &&
+             isValidDateString(data.createdAt) &&
+             data.status in ['PENDING', 'URGENT', 'BOUGHT', 'COMPLETED'];
+    }
+
+    function isValidShoppingItem(data) {
+      let allowedFields = ['name', 'requestedBy', 'requestedById', 'category', 'bought', 'price', 'createdAt'];
+      let hasRequired = data.keys().hasAll(['name', 'requestedBy', 'requestedById', 'category', 'bought', 'createdAt']);
+      let validPrice = !('price' in data) || (data.price is number && data.price >= 0);
+
+      return hasOnlyAllowedFields(allowedFields) && hasRequired &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             data.requestedBy is string && data.requestedBy.size() > 0 && data.requestedBy.size() < 50 &&
+             data.requestedById is string && data.requestedById == request.auth.uid &&
+             data.category is string && data.category.size() > 0 && data.category.size() < 50 &&
+             data.bought is bool &&
+             validPrice &&
+             isValidDateString(data.createdAt);
+    }
+
+    function isValidExpense(data) {
+      return hasOnlyAllowedFields(['amount', 'category', 'date', 'description', 'createdBy']) &&
+             data.amount is number && data.amount >= 0 &&
+             data.category is string && data.category.size() > 0 && data.category.size() < 50 &&
+             isValidDateString(data.date) &&
+             data.description is string && data.description.size() > 0 && data.description.size() < 200 &&
+             data.createdBy is string && data.createdBy == request.auth.uid;
+    }
+
+    function isValidEstateConfig(data) {
+      return data.keys().hasAll(['totalBudget', 'departmentTargets', 'homeHealth']) &&
+             data.totalBudget is number && data.totalBudget >= 0 &&
+             data.departmentTargets is map &&
+             data.homeHealth is map;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+    match /estate/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && docId == 'config' && isValidEstateConfig(request.resource.data);
+    }
+
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isAuthenticated() && isValidUser(request.resource.data) && 
+                    ((isOwner(userId) && request.resource.data.role == 'member') || isAdmin());
+      allow update: if isAuthenticated() && isValidUser(request.resource.data) && 
+                    ((isOwner(userId) && request.resource.data.role == resource.data.role) || isAdmin());
+    }
+
+    match /requests/{requestId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidRequest(request.resource.data);
+      allow update: if isAuthenticated() && 
+                    // Any authenticated user can update status, but only owner can update other fields
+                    // For simplicity, we'll allow any authenticated user to update requests (since it's a household app)
+                    // BUT we must re-validate the data and ensure requestedById doesn't change
+                    isValidRequest(request.resource.data) &&
+                    request.resource.data.requestedById == resource.data.requestedById &&
+                    request.resource.data.createdAt == resource.data.createdAt;
+      allow delete: if isAuthenticated();
+    }
+
+    match /shoppingList/{itemId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidShoppingItem(request.resource.data);
+      allow update: if isAuthenticated() && 
+                    isValidShoppingItem(request.resource.data) &&
+                    request.resource.data.requestedById == resource.data.requestedById &&
+                    request.resource.data.createdAt == resource.data.createdAt;
+      allow delete: if isAuthenticated();
+    }
+
+    match /expenses/{expenseId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidExpense(request.resource.data);
+      allow update: if isAuthenticated() && 
+                    isValidExpense(request.resource.data) &&
+                    request.resource.data.createdBy == resource.data.createdBy &&
+                    request.resource.data.date == resource.data.date;
+      allow delete: if isAuthenticated() && (resource.data.createdBy == request.auth.uid || isAdmin());
+    }
+  }
+}
